@@ -8,6 +8,11 @@ resource "aws_vpc" "this" {
   })
 }
 
+locals {
+  cluster_tag_key = var.eks_cluster_name != null ? "kubernetes.io/cluster/${var.eks_cluster_name}" : null
+}
+
+
 # --- Subnets (2AZ) ---
 resource "aws_subnet" "public" {
   count                   = length(var.azs)
@@ -16,11 +21,19 @@ resource "aws_subnet" "public" {
   cidr_block              = var.public_subnet_cidrs[count.index]
   map_public_ip_on_launch = false # 지금 단계에서는 OFF
 
-  tags = merge(var.tags, {
-    Name = "${var.name}-public-${count.index == 0 ? "a" : "c"}"
-    Tier = "public"
-  })
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.name}-public-${count.index == 0 ? "a" : "c"}"
+      Tier = "public"
+    },
+    var.eks_cluster_name != null ? {
+      "kubernetes.io/cluster/${var.eks_cluster_name}" = "shared"
+      "kubernetes.io/role/elb"                        = "1"
+    } : {}
+  )
 }
+
 
 resource "aws_subnet" "private_app" {
   count                   = length(var.azs)
@@ -57,6 +70,26 @@ resource "aws_internet_gateway" "this" {
   })
 }
 
+# --- NAT Gateway (Private subnet outbound) ---
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = merge(var.tags, {
+    Name = "${var.name}-nat-eip"
+  })
+}
+
+resource "aws_nat_gateway" "this" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[0].id  # public-a에 NAT 하나만 (비용절약)
+
+  tags = merge(var.tags, {
+    Name = "${var.name}-nat"
+  })
+
+  depends_on = [aws_internet_gateway.this]
+}
+
 # --- Route tables ---
 # Public RT: 0.0.0.0/0 -> IGW + associate public subnets
 resource "aws_route_table" "public" {
@@ -65,6 +98,13 @@ resource "aws_route_table" "public" {
   tags = merge(var.tags, {
     Name = "${var.name}-rt-public"
   })
+}
+
+# Private RT: 0.0.0.0/0 -> NAT Gateway (private subnet outbound)
+resource "aws_route" "private_to_nat" {
+  route_table_id         = aws_route_table.private.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.this.id
 }
 
 resource "aws_route" "public_internet" {

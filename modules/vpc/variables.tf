@@ -26,3 +26,9 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "eks_cluster_name" {
+  type    = string
+  default = null
+}
+

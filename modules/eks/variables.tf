@@ -3,12 +3,27 @@ variable "region" { type = string }
 
 variable "vpc_id" { type = string }
 
-# EKS control plane / nodegroup 둘 다 들어갈 private app subnet 2개 추천
-variable "private_subnet_ids" {
+variable "private_app_subnet_ids" {
+  type = list(string)
+}
+
+variable "public_subnet_ids" {
   type = list(string)
 }
 
 variable "tags" {
   type    = map(string)
   default = {}
+}
+
+variable "nat_gateway_id" {
+  type        = string
+  description = "Dependency-only: NAT gateway id from VPC module"
+  default     = null
+}
+
+variable "private_route_table_id" {
+  type        = string
+  description = "Dependency-only: Private route table id from VPC module"
+  default     = null
 }
