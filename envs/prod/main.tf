@@ -15,15 +15,23 @@ module "vpc" {
 
   tags = {
     Project   = "sentistock"
-    ManagedBy = "Terraform"
     Env       = "prod"
+    ManagedBy = "Terraform"
   }
 }
 
-output "vpc_id" {
-  value = module.vpc.vpc_id
-}
+module "eks" {
+  source = "../../modules/eks"
 
-output "public_subnets" {
-  value = module.vpc.public_subnet_ids
+  name   = "sentistock"
+  region = "ap-northeast-2"
+
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_app_subnet_ids
+
+  tags = {
+    Project   = "sentistock"
+    Env       = "prod"
+    ManagedBy = "Terraform"
+  }
 }
