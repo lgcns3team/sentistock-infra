@@ -61,6 +61,21 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.this.token
 }
 
+resource "kubernetes_service_account_v1" "alb_controller" {
+  metadata {
+    name      = "aws-load-balancer-controller"
+    namespace = "kube-system"
+
+    annotations = {
+      "eks.amazonaws.com/role-arn" = module.eks.alb_controller_role_arn
+    }
+  }
+
+  depends_on = [module.eks]
+}
+
+
+
 provider "helm" {
   kubernetes = {
     host                   = data.aws_eks_cluster.this.endpoint
@@ -88,17 +103,25 @@ resource "helm_release" "aws_load_balancer_controller" {
     },
     {
       name  = "serviceAccount.create"
-      value = "true"
+      value = "false"
     },
     {
       name  = "serviceAccount.name"
       value = "aws-load-balancer-controller"
     },
     {
-      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-      value = module.eks.alb_controller_role_arn
-    }
+      name  = "vpcId"
+      value = module.vpc.vpc_id
+    },
+    {
+      name  = "awsRegion"
+      value = "ap-northeast-2"
+    },
   ]
 
-  depends_on = [module.eks]
+  depends_on = [
+      module.eks,
+      kubernetes_service_account_v1.alb_controller
+  ]
+
 }
