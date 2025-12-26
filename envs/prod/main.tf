@@ -150,3 +150,25 @@ resource "helm_release" "aws_load_balancer_controller" {
   ]
 
 }
+
+module "frontend_static" {
+  source = "../../modules/frontend_static"
+  providers = { aws = aws }
+
+  name = var.name
+  tags = var.tags
+}
+
+
+
+#module "route53" {
+#  source = "../../modules/route53"
+#
+#  root_domain     = var.root_domain
+#  frontend_domain = var.frontend_domain
+#
+#  cf_domain_name = module.frontend_static.cloudfront_domain_name
+#  cf_zone_id     = module.frontend_static.cloudfront_hosted_zone_id
+#
+#  tags = var.tags
+#}

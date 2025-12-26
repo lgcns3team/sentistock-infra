@@ -10,3 +10,8 @@ variable "db_password" { type = string }
 variable "name" {
   type = string
 }
+variable "root_domain" { type = string }
+variable "frontend_domain" { type = string }
+variable "tags" {
+  type = map(string)
+}
