@@ -136,6 +136,13 @@ resource "aws_eks_cluster" "this" {
     endpoint_public_access  = true
     endpoint_private_access = true
   }
+  enabled_cluster_log_types = [
+    "api",
+    "audit",
+    "authenticator",
+    "controllerManager",
+    "scheduler"
+  ]
 
   tags = merge(var.tags, { Name = "${var.name}-eks" })
 
@@ -229,7 +236,7 @@ resource "aws_iam_role" "alb_controller_role" {
   depends_on = [aws_iam_openid_connect_provider.this]
 }
 
-# ⚠️ 이 json 파일은 modules/eks/alb_controller_policy.json 경로에 있어야 함
+# 이 json 파일은 modules/eks/alb_controller_policy.json 경로에 있어야 함
 resource "aws_iam_policy" "alb_controller_policy" {
   name   = "${var.name}-AWSLoadBalancerControllerIAMPolicy"
   policy = file("${path.module}/alb_controller_policy.json")
