@@ -5,3 +5,6 @@ output "cluster_ca" { value = aws_eks_cluster.this.certificate_authority[0].data
 output "node_role_arn" { value = aws_iam_role.eks_node_role.arn }
 output "alb_controller_role_arn" { value = aws_iam_role.alb_controller_role.arn }
 output "oidc_provider_arn" { value = aws_iam_openid_connect_provider.this.arn }
+output "node_security_group_id" {
+  value = aws_security_group.node.id
+}

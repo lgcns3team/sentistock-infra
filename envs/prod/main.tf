@@ -42,6 +42,31 @@ module "eks" {
   }
 }
 
+module "rds" {
+  source = "../../modules/rds"
+
+  name = "sentistock" # 또는 var.name
+  tags = {
+    Project   = "sentistock"
+    Env       = "prod"
+    ManagedBy = "Terraform"
+  }
+
+  vpc_id        = module.vpc.vpc_id
+  db_subnet_ids = module.vpc.private_db_subnet_ids
+
+  # eks 모듈 output에 node SG id가 있어야 함
+  allowed_sg_ids = [module.eks.node_security_group_id]
+
+  engine            = var.db_engine
+  engine_version    = var.db_engine_version
+  instance_class    = var.db_instance_class
+  allocated_storage = var.db_allocated_storage
+
+  db_name  = var.db_name
+  username = var.db_username
+  password = var.db_password
+}
 
 
 
