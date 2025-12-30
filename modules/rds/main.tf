@@ -13,7 +13,7 @@ resource "aws_security_group" "db" {
 
 # EKS 노드 SG에서만 DB 접근 허용
 resource "aws_security_group_rule" "db_in_3306" {
-  for_each = toset(var.allowed_sg_ids)
+  for_each = { for idx, sg_id in var.allowed_sg_ids : tostring(idx) => sg_id }
 
   type                     = "ingress"
   security_group_id        = aws_security_group.db.id
