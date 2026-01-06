@@ -6,3 +6,7 @@ variable "bucket_name" {
   type    = string
   default = null
 }
+
+variable "frontend_domain" { type = string }
+variable "root_domain" { type = string }      
+variable "hosted_zone_id" { type = string }   

@@ -31,6 +31,7 @@ resource "aws_cloudfront_origin_access_control" "oac" {
 resource "aws_cloudfront_distribution" "cdn" {
   enabled             = true
   default_root_object = "index.html"
+  aliases = [var.frontend_domain, "www.${var.frontend_domain}"]
 
   origin {
     domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
@@ -54,8 +55,11 @@ resource "aws_cloudfront_distribution" "cdn" {
   price_class = "PriceClass_200"
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+  acm_certificate_arn      = aws_acm_certificate_validation.cert.certificate_arn
+  ssl_support_method       = "sni-only"
+  minimum_protocol_version = "TLSv1.2_2021"
   }
+
 
   restrictions {
     geo_restriction {
@@ -64,4 +68,39 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   tags = var.tags
+}
+
+resource "aws_acm_certificate" "cert" {
+  provider          = aws.use1
+  domain_name       = var.frontend_domain
+  validation_method = "DNS"
+
+  subject_alternative_names = [
+    "www.${var.frontend_domain}"
+  ]
+
+  tags = var.tags
+}
+
+resource "aws_route53_record" "cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.cert.domain_validation_options :
+    dvo.domain_name => {
+      name  = dvo.resource_record_name
+      type  = dvo.resource_record_type
+      value = dvo.resource_record_value
+    }
+  }
+
+  zone_id = var.hosted_zone_id
+  name    = each.value.name
+  type    = each.value.type
+  ttl     = 60
+  records = [each.value.value]
+}
+
+resource "aws_acm_certificate_validation" "cert" {
+  provider                = aws.use1
+  certificate_arn         = aws_acm_certificate.cert.arn
+  validation_record_fqdns = [for r in aws_route53_record.cert_validation : r.fqdn]
 }

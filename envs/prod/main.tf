@@ -1,7 +1,13 @@
+################################
+# Providers
+################################
 provider "aws" {
   region = "ap-northeast-2"
 }
 
+################################
+# VPC
+################################
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -22,6 +28,9 @@ module "vpc" {
   }
 }
 
+################################
+# EKS
+################################
 module "eks" {
   source = "../../modules/eks"
 
@@ -32,9 +41,9 @@ module "eks" {
   private_app_subnet_ids = module.vpc.private_app_subnet_ids
   public_subnet_ids      = module.vpc.public_subnet_ids
 
-  nat_gateway_id          = module.vpc.nat_gateway_id
-  private_route_table_id  = module.vpc.private_route_table_id
-  
+  nat_gateway_id         = module.vpc.nat_gateway_id
+  private_route_table_id = module.vpc.private_route_table_id
+
   tags = {
     Project   = "sentistock"
     Env       = "prod"
@@ -42,10 +51,13 @@ module "eks" {
   }
 }
 
+################################
+# RDS
+################################
 module "rds" {
   source = "../../modules/rds"
 
-  name = "sentistock" # 또는 var.name
+  name = "sentistock"
   tags = {
     Project   = "sentistock"
     Env       = "prod"
@@ -55,7 +67,6 @@ module "rds" {
   vpc_id        = module.vpc.vpc_id
   db_subnet_ids = module.vpc.private_db_subnet_ids
 
-  # eks 모듈 output에 node SG id가 있어야 함
   allowed_sg_ids = [module.eks.node_security_group_id]
 
   engine            = var.db_engine
@@ -68,8 +79,9 @@ module "rds" {
   password = var.db_password
 }
 
-
-
+################################
+# EKS Auth
+################################
 data "aws_eks_cluster" "this" {
   name       = module.eks.cluster_name
   depends_on = [module.eks]
@@ -86,6 +98,9 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.this.token
 }
 
+################################
+# ALB Controller
+################################
 resource "kubernetes_service_account_v1" "alb_controller" {
   metadata {
     name      = "aws-load-balancer-controller"
@@ -98,8 +113,6 @@ resource "kubernetes_service_account_v1" "alb_controller" {
 
   depends_on = [module.eks]
 }
-
-
 
 provider "helm" {
   kubernetes = {
@@ -117,58 +130,54 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   wait    = true
   timeout = 900
+
   set = [
-    {
-      name  = "clusterName"
-      value = module.eks.cluster_name
-    },
-    {
-      name  = "region"
-      value = "ap-northeast-2"
-    },
-    {
-      name  = "serviceAccount.create"
-      value = "false"
-    },
-    {
-      name  = "serviceAccount.name"
-      value = "aws-load-balancer-controller"
-    },
-    {
-      name  = "vpcId"
-      value = module.vpc.vpc_id
-    },
-    {
-      name  = "awsRegion"
-      value = "ap-northeast-2"
-    },
+    { name = "clusterName", value = module.eks.cluster_name },
+    { name = "region", value = "ap-northeast-2" },
+    { name = "serviceAccount.create", value = "false" },
+    { name = "serviceAccount.name", value = "aws-load-balancer-controller" },
+    { name = "vpcId", value = module.vpc.vpc_id },
+    { name = "awsRegion", value = "ap-northeast-2" }
   ]
 
   depends_on = [
-      module.eks,
-      kubernetes_service_account_v1.alb_controller
+    module.eks,
+    kubernetes_service_account_v1.alb_controller
   ]
-
 }
 
-module "frontend_static" {
-  source = "../../modules/frontend_static"
-  providers = { aws = aws }
+################################
+# Route53 Hosted Zone (ZONE ONLY)
+################################
+module "route53" {
+  source = "../../modules/route53"
 
-  name = var.name
+  root_domain     = var.root_domain
+  frontend_domain = var.frontend_domain
+
+  cf_domain_name = module.frontend_static.cloudfront_domain_name
+  cf_zone_id     = module.frontend_static.cloudfront_hosted_zone_id
+
   tags = var.tags
 }
 
 
+################################
+# Frontend Static (S3 + CloudFront + ACM)
+################################
+module "frontend_static" {
+  source = "../../modules/frontend_static"
 
-#module "route53" {
-#  source = "../../modules/route53"
-#
-#  root_domain     = var.root_domain
-#  frontend_domain = var.frontend_domain
-#
-#  cf_domain_name = module.frontend_static.cloudfront_domain_name
-#  cf_zone_id     = module.frontend_static.cloudfront_hosted_zone_id
-#
-#  tags = var.tags
-#}
+  providers = {
+    aws      = aws
+    aws.use1 = aws.use1
+  }
+
+  name            = var.name
+  tags            = var.tags
+  frontend_domain = var.frontend_domain
+  hosted_zone_id  = module.route53.zone_id
+  root_domain     = var.root_domain
+}
+
+
