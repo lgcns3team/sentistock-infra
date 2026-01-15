@@ -1,0 +1,98 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sentistock-news-crawler
+  namespace: sentistock
+spec:
+  # 실행 주기
+  schedule: "*/5 9-15 * * 1-5"
+  timeZone: Asia/Seoul
+
+  # 동시에 여러 개 실행 방지
+  concurrencyPolicy: Forbid
+
+  # 실패 시 재시도
+  failedJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+
+          containers:
+            - name: sentistock-news-crawler
+              image: 260956700310.dkr.ecr.ap-northeast-2.amazonaws.com/sentistock-news-crawler:latest
+              imagePullPolicy: Always
+
+              env:
+                # =====================
+                # 실행 모드
+                # =====================
+                - name: DRY_RUN
+                  value: "false"   # ⚠ 처음엔 true 권장
+
+                # =====================
+                # DB (기존 secret 재사용)
+                # =====================
+                - name: DB_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: mariadb-secret
+                      key: DB_HOST
+
+                - name: DB_PORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: mariadb-secret
+                      key: DB_PORT
+
+                - name: DB_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: mariadb-secret
+                      key: DB_NAME
+
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: mariadb-secret
+                      key: DB_USER
+
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mariadb-secret
+                      key: DB_PASS
+
+                # =====================
+                # NAVER API
+                # =====================
+                - name: client_id
+                  valueFrom:
+                    secretKeyRef:
+                      name: sentistock-naver
+                      key: CLIENT_ID
+
+                - name: client_secret
+                  valueFrom:
+                    secretKeyRef:
+                      name: sentistock-naver
+                      key: CLIENT_SECRET
+
+                # =====================
+                # OpenAI / HuggingFace
+                # =====================
+                - name: gpt_key
+                  valueFrom:
+                    secretKeyRef:
+                      name: sentistock-openai
+                      key: GPT_KEY
+
+                - name: huggingface_api_token
+                  valueFrom:
+                    secretKeyRef:
+                      name: sentistock-huggingface
+                      key: HF_TOKEN

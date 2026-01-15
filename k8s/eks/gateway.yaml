@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentistock-gateway
+  namespace: sentistock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentistock-gateway
+  template:
+    metadata:
+      labels:
+        app: sentistock-gateway
+    spec:
+      containers:
+        - name: sentistock-gateway
+          image: 260956700310.dkr.ecr.ap-northeast-2.amazonaws.com/sentistock-gateway:v1.0.13
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "eks"
+            - name: SPRING_APPLICATION_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: scg-appjson
+                  key: SPRING_APPLICATION_JSON
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentistock-gateway
+  namespace: sentistock
+spec:
+  selector:
+    app: sentistock-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
