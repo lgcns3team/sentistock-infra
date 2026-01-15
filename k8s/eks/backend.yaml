@@ -1,0 +1,188 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentistock-backend
+  namespace: sentistock
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: sentistock-backend
+  template:
+    metadata:
+      labels:
+        app: sentistock-backend
+    spec:
+      containers:
+        - name: sentistock-backend
+          image: 260956700310.dkr.ecr.ap-northeast-2.amazonaws.com/sentistock/backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+
+          env:
+            - name: TZ
+              value: Asia/Seoul
+
+            # =========================
+            # Profile / JPA
+            # =========================
+            - name: SPRING_PROFILES_ACTIVE
+              value: "eks"
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: "update"
+            - name: SPRING_JPA_HIBERNATE_NAMING_PHYSICAL_STRATEGY
+              value: "org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl"
+
+            # =========================
+            # Firebase Admin SDK
+            # =========================
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/var/secrets/firebase/firebase-service-account.json"
+
+            # =========================
+            # Kafka (MSK)
+            # =========================
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "b-1.sentistockmsk.5zhivt.c3.kafka.ap-northeast-2.amazonaws.com:9094,b-2.sentistockmsk.5zhivt.c3.kafka.ap-northeast-2.amazonaws.com:9094"
+            - name: SPRING_KAFKA_PROPERTIES_BOOTSTRAP_SERVERS
+              value: "b-1.sentistockmsk.5zhivt.c3.kafka.ap-northeast-2.amazonaws.com:9094,b-2.sentistockmsk.5zhivt.c3.kafka.ap-northeast-2.amazonaws.com:9094"
+
+            - name: SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL
+              value: "SSL"
+
+            - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+              value: "org.apache.kafka.common.serialization.StringSerializer"
+            - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+              value: "org.springframework.kafka.support.serializer.JsonSerializer"
+
+            - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+              value: "org.apache.kafka.common.serialization.StringDeserializer"
+            - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+              value: "org.springframework.kafka.support.serializer.JsonDeserializer"
+
+            - name: SPRING_KAFKA_PROPERTIES_SPRING_JSON_ADD_TYPE_HEADERS
+              value: "false"
+            - name: SPRING_KAFKA_CONSUMER_PROPERTIES_SPRING_JSON_TRUSTED_PACKAGES
+              value: "com.example.SentiStock_backend.*"
+            - name: SPRING_KAFKA_CONSUMER_PROPERTIES_SPRING_JSON_VALUE_DEFAULT_TYPE
+              value: "com.example.SentiStock_backend.event.StockEvent"
+
+            - name: SPRING_KAFKA_LISTENER_AUTO_STARTUP
+              value: "true"
+
+            # =========================
+            # DB (MariaDB)
+            # =========================
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_NAME
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mariadb://$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_PASS
+
+            # =========================
+            # JWT
+            # =========================
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: JWT_SECRET
+
+            # =========================
+            # Kakao OAuth
+            # =========================
+            - name: KAKAO_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sentistock-kakao
+                  key: KAKAO_CLIENT_ID
+            - name: KAKAO_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: sentistock-kakao
+                  key: KAKAO_CLIENT_SECRET
+            - name: KAKAO_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: sentistock-kakao
+                  key: KAKAO_REDIRECT_URI
+            - name: KAKAO_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sentistock-kakao
+                  key: KAKAO_ADMIN_KEY
+
+            # =========================
+            # Actuator
+            # =========================
+            - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+              value: "always"
+            - name: MANAGEMENT_HEALTH_DB_ENABLED
+              value: "true"
+
+          volumeMounts:
+            - name: firebase-sa
+              mountPath: /var/secrets/firebase
+              readOnly: true
+
+      volumes:
+        - name: firebase-sa
+          secret:
+            secretName: firebase-sa
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentistock-backend
+  namespace: sentistock
+spec:
+  selector:
+    app: sentistock-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP

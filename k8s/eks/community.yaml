@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentistock-community
+  namespace: sentistock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentistock-community
+  template:
+    metadata:
+      labels:
+        app: sentistock-community
+    spec:
+      containers:
+        - name: sentistock-community
+          image: 260956700310.dkr.ecr.ap-northeast-2.amazonaws.com/sentistock-community:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_NAME
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mariadb://$(DB_HOST):$(DB_PORT)/$(DB_NAME)
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: DB_PASS
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentistock-community
+  namespace: sentistock
+spec:
+  selector:
+    app: sentistock-community
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082
+  type: ClusterIP
