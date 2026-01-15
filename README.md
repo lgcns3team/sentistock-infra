@@ -1,6 +1,7 @@
 # sentistock-infra
 Sentistock 인프라
 
+```
 📦infra
  ┣ 📂.git
  ┃ ┣ 📂hooks
@@ -220,3 +221,4 @@ Sentistock 인프라
  ┣ 📜.gitignore
  ┣ 📜README.md
  ┗ 📜versions.tf
+```
